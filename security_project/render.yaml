@@ -1,0 +1,51 @@
+services:
+  - type: web
+    name: django-app
+    env: python
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: gunicorn your_project.wsgi:application --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DEBUG
+        value: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: django-db
+          property: connectionString
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: django-redis
+          property: connectionString
+
+  - type: worker
+    name: celery-worker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A your_project worker --loglevel=info
+    envVars:
+      - key: SECRET_KEY
+        fromService:
+          type: web
+          name: django-app
+          property: SECRET_KEY
+      - key: DATABASE_URL
+        fromService:
+          type: web
+          name: django-app
+          property: DATABASE_URL
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: web
+          name: django-app
+          property: CELERY_BROKER_URL
+
+databases:
+  - name: django-db
+    databaseName: djangodb
+    user: django
+
+redis:
+  - name: django-redis
+    plan: free
